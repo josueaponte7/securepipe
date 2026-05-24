@@ -1,0 +1,9 @@
+### Health check
+GET http://localhost:8001/health
+
+### Scan test
+# @timeout 300
+POST http://localhost:8001/scan
+Content-Type: application/json
+
+{"repo_path": "task-manager"}

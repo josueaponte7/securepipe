@@ -1,0 +1,11 @@
+services:
+  scanner:
+    build: ./scanner
+    container_name: securepipe_scanner
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./repos:/repos
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PYTHONUNBUFFERED=1

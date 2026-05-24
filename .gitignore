@@ -1,0 +1,15 @@
+# Carpeta de repositorios de ejemplo (nunca subir)
+repos/
+
+# IDE
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# OS
+.DS_Store
+Thumbs.db
