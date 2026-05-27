@@ -22,6 +22,8 @@ async def run_checkov(repo_path: str) -> dict:
             "--output", "json",
             "--quiet",
             "--soft-fail",
+            "--skip-path", "vendor",
+            "--skip-path", "node_modules",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

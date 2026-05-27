@@ -15,6 +15,41 @@ class ScanRequest(BaseModel):
     repo_path: str
 
 
+def build_summary(semgrep: dict, trivy: dict, gitleaks: dict, checkov: dict) -> dict:
+    summary = {
+        "total_findings": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "unknown": 0,
+    }
+
+    all_findings = (
+        semgrep.get("findings", [])
+        + trivy.get("findings", [])
+        + gitleaks.get("findings", [])
+        + checkov.get("findings", [])
+    )
+
+    for finding in all_findings:
+        severity = (finding.get("severity") or "unknown").lower()
+        if severity == "critical":
+            summary["critical"] += 1
+        elif severity == "high":
+            summary["high"] += 1
+        elif severity == "medium":
+            summary["medium"] += 1
+        elif severity == "low":
+            summary["low"] += 1
+        else:
+            summary["unknown"] += 1
+
+    summary["total_findings"] = len(all_findings)
+
+    return summary
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -43,8 +78,11 @@ async def scan(request: ScanRequest):
 
     print("[SCAN] Scanners completados", flush=True)
 
+    summary = build_summary(semgrep, trivy, gitleaks, checkov)
+
     return {
         "repo": request.repo_path,
+        "summary": summary,
         "results": {
             "semgrep": semgrep,
             "trivy": trivy,
