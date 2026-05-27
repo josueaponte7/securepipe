@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import asyncio
 import os
-
+import math
 from scanners.semgrep_scanner import run_semgrep
 from scanners.trivy_scanner import run_trivy
 from scanners.gitleaks_scanner import run_gitleaks
@@ -49,6 +49,18 @@ def build_summary(semgrep: dict, trivy: dict, gitleaks: dict, checkov: dict) -> 
 
     return summary
 
+def calculate_score(summary: dict) -> int:
+    penalty = (
+        summary["critical"] * 20 +
+        summary["high"] * 8 +
+        summary["medium"] * 3 +
+        summary["low"] * 1 +
+        summary["unknown"] * 0.5
+    )
+    if penalty == 0:
+        return 100
+    score = 100 * math.exp(-0.015 * penalty)
+    return max(0, round(score))
 
 @app.get("/health")
 def health():
@@ -79,9 +91,11 @@ async def scan(request: ScanRequest):
     print("[SCAN] Scanners completados", flush=True)
 
     summary = build_summary(semgrep, trivy, gitleaks, checkov)
+    score = calculate_score(summary)
 
     return {
         "repo": request.repo_path,
+        "score": score,
         "summary": summary,
         "results": {
             "semgrep": semgrep,
