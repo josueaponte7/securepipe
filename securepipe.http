@@ -6,4 +6,4 @@ GET http://localhost:8001/health
 POST http://localhost:8001/scan
 Content-Type: application/json
 
-{"repo_path": "task-manager"}
+{"repo_path": "task-manager/project"}

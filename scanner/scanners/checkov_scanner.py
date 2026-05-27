@@ -1,6 +1,18 @@
 import asyncio
 import json
 
+EXCLUDED_PATHS = [
+    "vendor/",
+    "node_modules/",
+    ".git/",
+]
+
+
+def _is_excluded(file_path: str) -> bool:
+    if not file_path:
+        return False
+    return any(excluded in file_path for excluded in EXCLUDED_PATHS)
+
 
 async def run_checkov(repo_path: str) -> dict:
     try:
@@ -28,16 +40,27 @@ async def run_checkov(repo_path: str) -> dict:
             else:
                 all_failed = data.get("results", {}).get("failed_checks", [])
 
-            findings = [
-                {
+            findings = []
+            for check in all_failed:
+                file_path = check.get("repo_file_path", "")
+
+                if _is_excluded(file_path):
+                    continue
+
+                check_detail = check.get("check", {})
+                name = (
+                    check_detail.get("name")
+                    or check.get("check_type")
+                    or check.get("check_id")
+                )
+
+                findings.append({
                     "check_id": check.get("check_id"),
-                    "name": check.get("check.name") or check.get("check", {}).get("name"),
-                    "file": check.get("repo_file_path"),
+                    "name": name,
+                    "file": file_path,
                     "resource": check.get("resource"),
-                    "severity": check.get("severity"),
-                }
-                for check in all_failed
-            ]
+                    "severity": check.get("severity") or check_detail.get("severity"),
+                })
 
             return {
                 "status": "ok",
