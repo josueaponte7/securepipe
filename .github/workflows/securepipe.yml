@@ -1,0 +1,70 @@
+name: SecurePipe Self-Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Solo lee el código y sube un artifact; nada más.
+permissions:
+  contents: read
+
+# Cancela runs viejos del mismo ref (útil en PRs con varios pushes).
+concurrency:
+  group: securepipe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # --- Instalación de las 4 herramientas (mismos métodos que scanner/Dockerfile) ---
+
+      - name: Install Trivy (apt repo, igual que Dockerfile:12-18)
+        run: |
+          curl -sSL https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Install Gitleaks (binario v8.18.4, URL verbatim de Dockerfile:21-22)
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+
+      - name: Install Semgrep + Checkov + runtime deps (pip, igual que Dockerfile:25/29-30)
+        run: |
+          pip install semgrep checkov
+          pip install -r scanner/requirements.txt
+
+      # --- Caché de la DB de Trivy: sin esto la DB se rebaja en cada run
+      #     (cientos de MB, rate limit en GHCR) y trivy falla de forma intermitente ---
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ github.run_id }}
+          restore-keys: |
+            trivy-db-
+
+      # --- Ejecución: reutiliza cli.py (misma lógica que POST /scan) ---
+
+      - name: Run SecurePipe self-scan
+        run: python scanner/cli.py . --json-out securepipe-report.json
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: securepipe-report
+          path: securepipe-report.json
